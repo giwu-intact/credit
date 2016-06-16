@@ -23,6 +23,12 @@
         android:clickable="true"/>
 
     <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/steps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"/>
+
+    <TextView xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/calllog"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -42,6 +48,12 @@
 
     <TextView xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/accounts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"/>
+
+    <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/sensors"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:clickable="true"/>

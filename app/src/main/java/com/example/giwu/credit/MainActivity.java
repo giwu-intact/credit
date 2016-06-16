@@ -1,51 +1,90 @@
 package com.example.giwu.credit;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
-import android.hardware.usb.UsbAccessory;
-import android.hardware.usb.UsbManager;
-import android.location.Address;
-import android.location.Geocoder;
-import android.location.Location;
-import android.location.LocationManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.ParcelFileDescriptor;
 import android.provider.CalendarContract;
 import android.provider.CallLog;
 import android.provider.ContactsContract;
 import android.telephony.TelephonyManager;
 import android.widget.TextView;
 
+
+
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements SensorEventListener {
 
     private static Context context;
+    private TextView txt;
+    private SensorManager sensorManager;
+    private Boolean activityRunning;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         MainActivity.context = getApplicationContext();
         setContentView(R.layout.activity_main);
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+
         displayContacts();
-//        try {
-//            displayLocation();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
+        try {
+           displayLocation();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         displayCallLog();
         displaySMS();
         displayCalendarEvents();
         displayAccounts();
+        displaySensors();
         displayPhoneStatus();
-        //displayUSB();
+        displayUSB();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        activityRunning = true;
+        Sensor countSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        if (countSensor != null) {
+            sensorManager.registerListener(this, countSensor, SensorManager.SENSOR_DELAY_UI);
+        } else {
+            txt = (TextView) findViewById(R.id.steps);
+            txt.setText("Step Counter Not Found!");
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        activityRunning = false;
+        // if you unregister the last listener, the hardware will stop detecting step events
+//        sensorManager.unregisterListener(this);
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (activityRunning) {
+            txt = (TextView) findViewById(R.id.steps);
+            txt.setText("Step Counter: "+String.valueOf(event.values[0])+'\n');
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
     }
 
     public void displayContacts() {
@@ -71,34 +110,12 @@ public class MainActivity extends Activity {
             }
             msg += name + " " + number + " " + emailId + "\n";
         }
-        txt.setText(msg.toString());
+        txt.setText(msg);
     }
 
     public void displayLocation() throws IOException {
-        TextView txt = (TextView)findViewById(R.id.loc);
-        String msg = "";
-
-        Geocoder geocoder;
-        List<Address> addresses;
-        geocoder = new Geocoder(this, Locale.getDefault());
-
-        LocationManager lm = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
-        Location location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-
-        double longitude = location.getLongitude();
-        double latitude = location.getLatitude();
-
-        addresses = geocoder.getFromLocation(latitude, longitude, 1); // Here 1 represent max location result to returned, by documents it recommended 1 to 5
-
-        String address = addresses.get(0).getAddressLine(0); // If any additional address line present than only, check with max available address lines by getMaxAddressLineIndex()
-        String city = addresses.get(0).getLocality();
-        String state = addresses.get(0).getAdminArea();
-        String country = addresses.get(0).getCountryName();
-        String postalCode = addresses.get(0).getPostalCode();
-        String knownName = addresses.get(0).getFeatureName(); // Only if available else return NULL
-
-        msg = address + ", " + city + ", " + state + ", " + country + ", " + postalCode + ", " + knownName + "\n";
-        txt.setText(msg);
+        txt = (TextView)findViewById(R.id.loc);
+        LocationHandler locationHandler = new LocationHandler(context,txt);
     }
 
     public void displayCallLog() {
@@ -157,14 +174,22 @@ public class MainActivity extends Activity {
     public void displayAccounts() {
         TextView txt = (TextView)findViewById(R.id.accounts);
         String msg = "Displaying accounts..." + '\n';
-        ContentResolver cr = getContentResolver();
-        Cursor c = cr.query(ContactsContract.RawContacts.CONTENT_URI, null, null, null, null);
-        while(c.moveToNext()) {
-            String name = c.getString(c.getColumnIndex(ContactsContract.RawContacts.ACCOUNT_NAME));
-            String type = c.getString(c.getColumnIndex(ContactsContract.RawContacts.ACCOUNT_TYPE));
+        AccountManager am = (AccountManager) context.getSystemService(Context.ACCOUNT_SERVICE);
+        Account[] accounts = am.getAccounts();
+        for(Account account:accounts) {
+            String name = account.name;
+            String type = account.type;
             msg += name + ", " + type + "\n";
         }
         txt.setText(msg);
+    }
+
+    public void displaySensors() {
+        txt = (TextView)findViewById(R.id.sensors);
+        PackageManager manager = getPackageManager();
+        boolean hasTemp = manager.hasSystemFeature(PackageManager.FEATURE_SENSOR_AMBIENT_TEMPERATURE);
+        boolean hasStepCounter = manager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER);
+        txt.setText("Has Temp Sensor: " + hasTemp + '\n' + "Has Step Counter: " + hasStepCounter + '\n');
     }
 
     public void displayPhoneStatus() {
@@ -345,7 +370,7 @@ public class MainActivity extends Activity {
 
         msg += "Internal Files: \n";
         File inFiles[] = Environment.getDataDirectory().listFiles();
-        if (dirFiles.length != 0) {
+        if (inFiles != null) {
             // loops through the array of files, outputing the name to console
             for (int ii = 0; ii < inFiles.length; ii++) {
                 msg += "File Name: " + inFiles[ii].toString() + '\n';
